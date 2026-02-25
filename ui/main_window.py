@@ -720,6 +720,9 @@ class MainWindow(QMainWindow):
         self._log(f"已添加: {display_name}，存储 {len(final_positions)} 个持仓")
         self._log(f"当前共监控 {len(self._trader_positions)} 个交易员")
 
+        # 同步到云服务器
+        self._sync_add_trader(trader.unique_code, display_name)
+
         # Force refresh the positions table
         self._refresh_all_positions()
 
@@ -743,6 +746,9 @@ class MainWindow(QMainWindow):
         self._update_traders_count()
 
         self._log(f"已移除: {display_name}")
+
+        # 同步到云服务器
+        self._sync_remove_trader(code)
         self._refresh_all_positions()
 
     def _update_traders_count(self) -> None:
@@ -1070,6 +1076,40 @@ class MainWindow(QMainWindow):
     def _cleanup_thread(self, thread) -> None:
         if thread in self._notifier_threads:
             self._notifier_threads.remove(thread)
+
+    def _sync_add_trader(self, code: str, name: str) -> None:
+        """同步添加交易员到云服务器"""
+        if not self.notifier.bot_token or not self.notifier.chat_id:
+            return
+
+        try:
+            import requests
+            url = f"https://api.telegram.org/bot{self.notifier.bot_token}/sendMessage"
+            data = {
+                "chat_id": self.notifier.chat_id,
+                "text": f"/sync_add {code} {name}"
+            }
+            requests.post(url, data=data, timeout=5)
+            self._log(f"已同步到云服务器: 添加 {name}")
+        except Exception as e:
+            self._log(f"同步失败: {e}")
+
+    def _sync_remove_trader(self, code: str) -> None:
+        """同步删除交易员到云服务器"""
+        if not self.notifier.bot_token or not self.notifier.chat_id:
+            return
+
+        try:
+            import requests
+            url = f"https://api.telegram.org/bot{self.notifier.bot_token}/sendMessage"
+            data = {
+                "chat_id": self.notifier.chat_id,
+                "text": f"/sync_remove {code}"
+            }
+            requests.post(url, data=data, timeout=5)
+            self._log(f"已同步到云服务器: 删除")
+        except Exception as e:
+            self._log(f"同步失败: {e}")
 
     def closeEvent(self, event) -> None:
         if self.monitor_thread and self.monitor_thread.isRunning():

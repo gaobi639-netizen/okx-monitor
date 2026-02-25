@@ -357,6 +357,48 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text(text)
 
 
+async def cmd_sync_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """从桌面软件同步添加交易员（静默）"""
+    if len(context.args) < 2:
+        return
+
+    code = context.args[0].upper()
+    name = " ".join(context.args[1:])
+
+    if code in CONFIG["monitor"]["traders"]:
+        return  # 已存在，静默忽略
+
+    CONFIG["monitor"]["traders"][code] = name
+    save_config(CONFIG)
+
+    if monitor:
+        monitor.first_run[code] = True
+
+    print(f"[同步] 已添加交易员: {name} ({code})")
+    await update.message.reply_text(f"☁️ 云端已同步: 添加 {name}")
+
+
+async def cmd_sync_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """从桌面软件同步删除交易员（静默）"""
+    if len(context.args) < 1:
+        return
+
+    code = context.args[0].upper()
+
+    if code not in CONFIG["monitor"]["traders"]:
+        return  # 不存在，静默忽略
+
+    name = CONFIG["monitor"]["traders"].pop(code)
+    save_config(CONFIG)
+
+    if monitor:
+        monitor.cache.pop(code, None)
+        monitor.first_run.pop(code, None)
+
+    print(f"[同步] 已删除交易员: {name} ({code})")
+    await update.message.reply_text(f"☁️ 云端已同步: 删除 {name}")
+
+
 # ==================== 主程序 ====================
 async def monitor_loop(app: Application) -> None:
     """监控循环"""
@@ -402,6 +444,9 @@ def main():
     app.add_handler(CommandHandler("remove", cmd_remove))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("positions", cmd_positions))
+    # 桌面软件同步命令
+    app.add_handler(CommandHandler("sync_add", cmd_sync_add))
+    app.add_handler(CommandHandler("sync_remove", cmd_sync_remove))
 
     # 启动监控循环
     loop = asyncio.new_event_loop()
